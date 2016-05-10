@@ -45,48 +45,31 @@ router.post('/user', function (req, res) {
   const errors = req.validationErrors();
 
   if (errors) {
-    console.log(errors);
     req.flash('errors', errors);
     return res.redirect('/admin/user?' + qs.stringify(req.body));
   }
 
   const body = req.body;
 
-  const userFields = new Promise( (resolve, reject) => {
-    if (body._id.length) {
-      User.findOne({ _id: body._id }, function (err, user) {
-        user = _.merge(user, req.body);
-        resolve(user);
-      });
-    } else {
-      delete body._id; //remove empty id from user
-      let user = new User(body);
-      resolve(user);
+  const initUser = new Promise((resolve, reject) => {
+    if (!body._id) {
+      return resolve(new User())
     }
-  });
-  
-  userFields.then(function(user){
-    user.save().then(result => {
-      req.flash('success', [{ msg: result.profile.name + ' Saved' }])
-      res.redirect('/admin/users')
-    }).catch(err => {
-      handleErr(err);
-    });
-  }).catch(err => {
-    handleErr(err);
-  })
-  
-  const handleErr = err => {
-    req.flash('errors', [{ msg: 'Could not save user' }])
-    
-    //create redirect url for new or existing user
-    let url = '/admin/user';
 
-    if (typeof body._id !== "undefined")
-      url = url + '/' + body._id;
-    
-    return res.redirect(url + '?' + qs.stringify(body))
-  }
+    resolve(User.findOne({ _id: body._id }))
+  })
+
+  initUser.then(user => {
+    delete body._id
+    user = _.merge(user, body);
+    return user.save()
+  }).then(saved => {
+    req.flash('success', [{ msg: saved.profile.name + ' Saved' }])
+    res.redirect('/admin/users')
+  }).catch(err => {
+    req.flash('errors', [{ msg: 'Could not save user' }])
+    return res.redirect('back')
+  })
 })
 
 router.get('/user/delete/:id', function (req, res) {
